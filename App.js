@@ -24,6 +24,10 @@ var FEATURE_STATES = {
     EMPTY : ''
 };
 
+var plannedTotals = [0,0,0,0];
+
+var GRANDPARENT_TRAIN = "CUBE - Policy Administration";
+var PARENT_TRAINS = [];
 var CUBE_TEAMS = {};
 
 Ext.define('CustomApp', {
@@ -49,10 +53,39 @@ Ext.define('CustomApp', {
     },
 
     onProjectSelect: function (projectPicker) {
+        var me = this;
+
+        CUBE_TEAMS = projectPicker.selectedValues.items;
+        var mostRecentSelection = CUBE_TEAMS.slice(-1)[0];
+        window.console.log("What is the mostRecentSelection?", mostRecentSelection);
+        me.addParentIfNecessary(mostRecentSelection);
+    },
+
+    onProjectDeselect: function (projectPicker) {
         CUBE_TEAMS = projectPicker.selectedValues.items;
     },
 
     onReleaseSelect: function () {
+
+    },
+
+    addParentIfNecessary: function (teamObject) {
+        window.console.log("What is the teamObject?", teamObject);
+
+        if (teamObject.data.Name === GRANDPARENT_TRAIN || teamObject.data.Parent.Name === GRANDPARENT_TRAIN) {
+            return;
+        }
+
+        var parentName = teamObject.data.Parent.Name;
+
+        for (var i = 0; i < PARENT_TRAINS.length; i++) {
+            if (parentName === PARENT_TRAINS[i]) {
+                return;
+            }
+        }
+
+        PARENT_TRAINS.push(parentName);
+        window.console.log("What is PARENT_TRAINS?", PARENT_TRAINS);
 
     },
 
@@ -74,7 +107,7 @@ Ext.define('CustomApp', {
 
         var refFeatureSnapshots = featureSnapshotStore.data.items;
 
-        var featureState = {
+        var featureProperties = {
             isPlanned: false,
             isCompleted: false,
             isAdded: false,
@@ -83,15 +116,29 @@ Ext.define('CustomApp', {
         };
 
         for (var i = 0; i < refFeatureSnapshots.length; i++) {
-            featureState.isPartOfRelease = me.determineReleaseStatus(refFeatureSnapshots[i]);
-            featureState.isPlanned = me.determinePlannedStatus(refFeatureSnapshots[i], featureState.isPlanned);
-            featureState.isCompleted = me.determineCompletedStatus(refFeatureSnapshots[i], featureState.isCompleted);
-            featureState.isAdded = me.determineAddedStatus(refFeatureSnapshots[i], featureState.isAdded, featureState.isPlanned);
-            featureState.isRemoved = me.determineRemovedStatus(refFeatureSnapshots[i], featureState.isPartOfRelease, featureState.isRemoved);
-//            window.console.log("What is the release state of feature: " + refFeatureSnapshots[i].data.FormattedID, featureState.isPartOfRelease);
-//            window.console.log("What is the planned state of feature: " + refFeatureSnapshots[i].data.FormattedID, featureState.isPlanned);
-//            window.console.log("What is the added state of feature: " + refFeatureSnapshots[i].data.FormattedID, featureState.isAdded);
-            window.console.log("What is the removed state of feature: " + refFeatureSnapshots[i].data.FormattedID, featureState.isRemoved);
+            featureProperties.isPartOfRelease = me.determineReleaseStatus(refFeatureSnapshots[i]);
+            featureProperties.isPlanned = me.determinePlannedStatus(refFeatureSnapshots[i], featureProperties.isPlanned);
+            featureProperties.isCompleted = me.determineCompletedStatus(refFeatureSnapshots[i], featureProperties.isCompleted);
+            featureProperties.isAdded = me.determineAddedStatus(refFeatureSnapshots[i], featureProperties.isAdded, featureProperties.isPlanned);
+            featureProperties.isRemoved = me.determineRemovedStatus(refFeatureSnapshots[i], featureProperties.isPartOfRelease, featureProperties.isRemoved);
+        }
+
+        if (featureProperties.isPlanned) {
+            me.manage(plannedTotals, 1, featureSnapshotStore.findConfig.Project);
+        }
+    },
+
+    manage: function (dataArray, amountToAdd, projectObjectId) {
+        var me = this;
+
+        var parentName = me.determineParent(projectObjectId);
+    },
+
+    determineParent: function (projectObjectId) {
+        for (var i = 0; i < CUBE_TEAMS.length; i++) {
+            if (CUBE_TEAMS[i].data.ObjectID === projectObjectId) {
+                return CUBE_TEAMS[i].data.Parent.Name;
+            }
         }
     },
 
@@ -307,6 +354,7 @@ Ext.define('CustomApp', {
         return Ext.create('Rally.ui.picker.project.MultiProjectPicker', {
             listeners: {
                 select: me.onProjectSelect,
+                deselect: me.onProjectDeselect,
                 scope: me
             },
             storeConfig: {

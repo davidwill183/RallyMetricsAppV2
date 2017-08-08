@@ -40,7 +40,7 @@ Ext.define('CustomApp', {
 
         for (var i = 0; i < CUBE_TEAMS.length; i++) {
             var featureStore = me.createTeamFeatureStore(CUBE_TEAMS[i]);
-            window.console.log("WHat is the featureStore?", featureStore);
+            window.console.log("What is the featureStore?", featureStore);
         }
     },
 
@@ -68,7 +68,7 @@ Ext.define('CustomApp', {
     },
 
     analyzeFeature: function (featureSnapshotStore) {
-        window.console.log("What is the feature snapshot store?", featureSnapshotStore);
+        window.console.log("What is the feature snapshot store for " + featureSnapshotStore.data.items[0].data.FormattedID, featureSnapshotStore);
 
         var me = this;
 
@@ -78,22 +78,36 @@ Ext.define('CustomApp', {
             isPlanned: false,
             isCompleted: false,
             isAdded: false,
-            isRemoved: false
+            isRemoved: false,
+            isPartOfRelease: false
         };
 
         for (var i = 0; i < refFeatureSnapshots.length; i++) {
+            featureState.isPartOfRelease = me.determineReleaseStatus(refFeatureSnapshots[i]);
             featureState.isPlanned = me.determinePlannedStatus(refFeatureSnapshots[i], featureState.isPlanned);
             featureState.isCompleted = me.determineCompletedStatus(refFeatureSnapshots[i], featureState.isCompleted);
-            window.console.log("What is the completedState of feature: " + refFeatureSnapshots[i].data.FormattedID, featureState.isCompleted);
+            featureState.isAdded = me.determineAddedStatus(refFeatureSnapshots[i], featureState.isAdded, featureState.isPlanned);
+            featureState.isRemoved = me.determineRemovedStatus(refFeatureSnapshots[i], featureState.isPartOfRelease, featureState.isRemoved);
+//            window.console.log("What is the release state of feature: " + refFeatureSnapshots[i].data.FormattedID, featureState.isPartOfRelease);
+//            window.console.log("What is the planned state of feature: " + refFeatureSnapshots[i].data.FormattedID, featureState.isPlanned);
+//            window.console.log("What is the added state of feature: " + refFeatureSnapshots[i].data.FormattedID, featureState.isAdded);
+            window.console.log("What is the removed state of feature: " + refFeatureSnapshots[i].data.FormattedID, featureState.isRemoved);
         }
     },
 
-    determinePlannedStatus: function (featureSnapshot, isPlanned) {
+    determineReleaseStatus: function (featureSnapshot) {
         var me = this;
 
+        var currentReleaseName = me._getReferenceToCurrentlySelectedRelease();
+        return (featureSnapshot.data.Release.Name === currentReleaseName);
+    },
+
+    determinePlannedStatus: function (featureSnapshot, isPlanned) {
         if (isPlanned) {
             return true;
         }
+
+        var me = this;
 
         var currentReleaseName = me._getReferenceToCurrentlySelectedRelease();
         var releaseStartDate = me._getCurrentlySelectedReleaseStartDate();
@@ -101,7 +115,7 @@ Ext.define('CustomApp', {
         var validFromDate = featureSnapshot.data._ValidFrom;
         var validToDate = featureSnapshot.data._ValidTo;
 
-        if (validFromDate >= releaseStartDate && releaseStartDate <= validToDate && featureSnapshot.data.Release.Name === currentReleaseName) {
+        if (validFromDate <= releaseStartDate && validToDate >= releaseStartDate && featureSnapshot.data.Release.Name === currentReleaseName) {
             return true;
         }
 
@@ -109,6 +123,10 @@ Ext.define('CustomApp', {
     },
 
     determineCompletedStatus: function (featureSnapshot, isCompleted) {
+        if (isCompleted) {
+            return (featureSnapshot.data.State === FEATURE_STATES.DONE);
+        }
+
         var me = this;
 
         var currentReleaseName = me._getReferenceToCurrentlySelectedRelease();
@@ -117,19 +135,42 @@ Ext.define('CustomApp', {
         var validFromDate = featureSnapshot.data._ValidFrom;
         var validToDate = featureSnapshot.data._ValidTo;
 
-        if (isCompleted) {
-            if (featureSnapshot.data.State === FEATURE_STATES.DONE) {
-                return true;
-            } else {
-                return false;
-            }
-        }
-
         if (releaseStartDate <= validFromDate && validFromDate <= releaseEndDate && featureSnapshot.data.Release.Name === currentReleaseName && featureSnapshot.data.State === FEATURE_STATES.DONE) {
             return true;
         }
 
         return false;
+    },
+
+    determineAddedStatus: function (featureSnapshot, isAdded, isPlanned) {
+        if (isAdded) {
+            return !isPlanned;
+        }
+
+        var me = this;
+
+        var currentReleaseName = me._getReferenceToCurrentlySelectedRelease();
+        var releaseStartDate = me._getCurrentlySelectedReleaseStartDate();
+        var releaseEndDate = me._getCurrentlySelectedReleaseEndDate();
+        var validFromDate = featureSnapshot.data._ValidFrom;
+        var validToDate = featureSnapshot.data._ValidTo;
+
+        if (validFromDate > releaseStartDate && validFromDate <= releaseEndDate && featureSnapshot.data.Release.Name === currentReleaseName && !isPlanned) {
+            return true;
+        }
+
+        return false;
+    },
+
+    determineRemovedStatus: function (featureSnapshot, isPartOfRelease, isRemoved) {
+        var me = this;
+
+        if (isPartOfRelease) {
+            var currentReleaseName = me._getReferenceToCurrentlySelectedRelease();
+            return featureSnapshot.data.Release.Name !== currentReleaseName;
+        }
+
+        return isRemoved;
     },
 
     buildUIContainer: function (desiredContainerId) {
@@ -244,6 +285,22 @@ Ext.define('CustomApp', {
         });
     },
 
+    createNumberStore: function (desiredNumberStoreId) {
+        return Ext.create('Ext.data.Store', {
+            fields: ['number'],
+            storeId: desiredNumberStoreId,
+            data: [
+                {"number":"1"},
+                {"number":"2"},
+                {"number":"3"},
+                {"number":"4"},
+                {"number":"5"},
+                {"number":"6"},
+                {"number":"7"}
+            ]
+        });
+    },
+
     createProjectPicker: function(desiredPickerId) {
         var me = this;
 
@@ -280,22 +337,6 @@ Ext.define('CustomApp', {
         });
     },
 
-    createNumberStore: function (desiredNumberStoreId) {
-        return Ext.create('Ext.data.Store', {
-            fields: ['number'],
-            storeId: desiredNumberStoreId,
-            data: [
-                {"number":"1"},
-                {"number":"2"},
-                {"number":"3"},
-                {"number":"4"},
-                {"number":"5"},
-                {"number":"6"},
-                {"number":"7"}
-            ]
-        });
-    },
-
     createTeamFeatureStore: function (teamObject) {
         var me = this;
         
@@ -324,7 +365,7 @@ Ext.define('CustomApp', {
         var findSettings = {
             '_TypeHierarchy': MODELS.FEATURE,
             'Project': teamObjectId,
-            'FormattedID': featureObject.FormattedID
+            'ObjectID': featureObject.ObjectID
         };
 
         window.console.log("What is teamObjectId?", teamObjectId);

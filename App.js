@@ -2,14 +2,13 @@ var Ext = window.Ext4 || window.Ext;
 
 var COMPUTE_METRICS_BUTTON_ID = 'compute-metrics-button';
 var NUMBERS_COMBO_BOX_ID = 'numbers-combo-box';
-var NUMBERS_COMBO_BOX_ID_AS_QUERY = '#' + NUMBERS_COMBO_BOX_ID;
 var NUMBERS_STORE_ID = 'number-store';
 var PROJECT_PICKER_ID = 'project-picker';
 var RELEASE_COMBO_BOX_ID = 'release-combo-box';
 var RELEASE_COMBO_BOX_ID_AS_QUERY = '#' + RELEASE_COMBO_BOX_ID;
+var RESULTS_TABLE_ID = 'results-table';
 var RETRIEVE_RESULTS_BUTTON_ID = 'retrieve-results-button';
 var SPRINT_COMBO_BOX_ID = 'sprint-combo-box';
-var SPRINT_COMBO_BOX_ID_AS_QUERY = '#' + SPRINT_COMBO_BOX_ID;
 var UI_CONTAINER_ID = 'ui-container';
 var UI_CONTAINER_ID_AS_QUERY = '#' + UI_CONTAINER_ID;
 
@@ -24,7 +23,27 @@ var FEATURE_STATES = {
     EMPTY : ''
 };
 
-var plannedTotals = [0,0,0,0];
+var COLUMN_TITLES = [
+    "<b>PI Metrics</b>",
+    "Features Planned",
+    "Features Completed",
+    "Feature Pts Planned",
+    "Feature Pts Completed",
+    "% Feature Pts Completed",
+    "Business Value Planned",
+    "Business Value Completed",
+    "% BV Completed"
+];
+
+var ROW_TITLES = [
+    " ",
+    "WC Train",
+    "PAS Train",
+    "Pkg Train",
+    "Tech Enb Train"
+];
+
+var plannedFeatures = [0,0,0,0];
 
 var GRANDPARENT_TRAIN = "CUBE - Policy Administration";
 var PARENT_TRAINS = [];
@@ -49,7 +68,9 @@ Ext.define('CustomApp', {
     },
 
     doRetrieveResults: function () {
+        var me = this;
 
+        me.prepareResultsTable(RESULTS_TABLE_ID);
     },
 
     onProjectSelect: function (projectPicker) {
@@ -124,7 +145,8 @@ Ext.define('CustomApp', {
         }
 
         if (featureProperties.isPlanned) {
-            me.manage(plannedTotals, 1, featureSnapshotStore.findConfig.Project);
+            me.manage(plannedFeatures, 1, featureSnapshotStore.findConfig.Project);
+            window.console.log("What is the planned status for: " + featureSnapshotStore.data.items[0].data.FormattedID + "?", featureProperties.isPlanned);
         }
     },
 
@@ -132,6 +154,12 @@ Ext.define('CustomApp', {
         var me = this;
 
         var parentName = me.determineParent(projectObjectId);
+
+        for (var i = 0; i < PARENT_TRAINS.length; i++) {
+            if (parentName === PARENT_TRAINS[i]) {
+                dataArray[i] += amountToAdd;
+            }
+        }
     },
 
     determineParent: function (projectObjectId) {
@@ -286,6 +314,13 @@ Ext.define('CustomApp', {
         me.down(UI_CONTAINER_ID_AS_QUERY).add(retrieveResultsButton);
     },
 
+    prepareResultsTable: function (desiredTableId) {
+        var me = this;
+
+        var resultsTable = me.createResultsTable(desiredTableId);
+        me.add(resultsTable);
+    },
+
     createHBoxContainer: function (desiredContainerId) {
         return Ext.create('Ext.container.Container', {
             itemId: desiredContainerId,
@@ -383,6 +418,57 @@ Ext.define('CustomApp', {
             handler: me.doRetrieveResults,
             scope: me
         });
+    },
+
+    createResultsTable: function (desiredTableId) {
+        var me = this;
+        var tableItems = me.createTableItems();
+        var currentlySelectedRelease = me._getReferenceToCurrentlySelectedRelease();
+
+        return Ext.create('Ext.panel.Panel', {
+            title: currentlySelectedRelease,
+            titleAlign: 'center',
+          width: '100%',
+            itemId: desiredTableId,
+            layout: {
+                type: 'table',
+                columns: 9,
+                tableAttrs: {
+                    style: {
+                        width: '100%',
+                        border: '5px solid black'
+                    }
+                }
+            },
+            items: tableItems,
+            cls: 'tableCls'
+        });
+    },
+
+    createTableItems: function () {
+        var items = [];
+
+        var me = this;
+
+        for (var i = 0; i < 5; i++) {
+            for (var j = 0; j < 9; j++) {
+                if (i === 0) {
+                    items.push({
+                        html: COLUMN_TITLES[j]
+                    });
+                } else if (j === 0) {
+                    items.push({
+                        html: ROW_TITLES[i]
+                    });
+                } else {
+                    items.push({
+                        html: 'Zero'
+                    });
+                }
+            }
+        }
+
+        return items;
     },
 
     createTeamFeatureStore: function (teamObject) {
